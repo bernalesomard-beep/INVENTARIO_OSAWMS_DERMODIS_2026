@@ -2002,7 +2002,7 @@ function obtenerDetalleUbicacionesCodigo(codBpcs, codCliente) {
         ubicacion: d.UBICACION || '', codigo: d.CODIGO || '', descripcion,
         descripcionDeMaestra: !descOriginal && !!descripcion,
         cantidad: isNaN(saldo) ? null : saldo, conteo: isNaN(conteo) ? null : conteo, diferencia: diff,
-        estatus: estNorm, loteBpcs: d['LOTE BPCS'] || '',
+        estatus: estNorm, loteBpcs: d['LOTE BPCS'] || '', idData: d.ID_DATA || '',
         observacion: obtenerObservacionFila(d, estNorm, obsMap).texto, usuario: d.USUARIO || ''
       };
     });
@@ -3638,6 +3638,7 @@ function debounce(fn, ms) {
           <thead class="sticky top-0 bg-white"><tr class="text-left text-on-surface-variant border-b border-outline-variant">
             <th class="py-2 px-2 font-semibold">Código</th>
             <th class="py-2 px-2 font-semibold">Lote BPCS</th>
+            <th class="py-2 px-2 font-semibold">ID_DATA</th>
             <th class="py-2 px-2 font-semibold text-right">Cantidad</th>
             <th class="py-2 px-2 font-semibold">De (Faltante)</th>
             <th class="py-2 px-2 font-semibold">A (Sobrante)</th>
@@ -3649,9 +3650,14 @@ function debounce(fn, ms) {
       </div>
       <div class="p-5 border-t border-outline-variant flex flex-wrap items-center justify-between gap-2">
         <button id="btnTrfmasVaciar" class="text-xs text-error hover:underline">Vaciar todos los traslados</button>
-        <button id="btnTrfmasExportar" class="flex items-center gap-1.5 text-xs bg-primary text-on-primary rounded-lg px-4 py-2 hover:opacity-90 font-semibold">
-          <span class="material-symbols-outlined text-[16px]">download</span> Exportar TRFMAS.xlsx
-        </button>
+        <div class="flex items-center gap-2">
+          <button id="btnTrfmasAutoTodos" class="flex items-center gap-1.5 text-xs border border-primary text-primary rounded-lg px-3 py-2 hover:bg-primary-fixed font-semibold">
+            <span class="material-symbols-outlined text-[16px]">bolt</span> Auto-armar todos los pendientes
+          </button>
+          <button id="btnTrfmasExportar" class="flex items-center gap-1.5 text-xs bg-primary text-on-primary rounded-lg px-4 py-2 hover:opacity-90 font-semibold">
+            <span class="material-symbols-outlined text-[16px]">download</span> Exportar TRFMAS.xlsx
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -3717,7 +3723,8 @@ function debounce(fn, ms) {
         return `<td class="py-1.5 px-2 text-center border-l border-surface-variant">
           <input type="checkbox" class="trf-cell-check rounded border-outline-variant cursor-pointer"
             data-trf-cod="${codigo}" data-trf-uf="${f.ubicacion}" data-trf-us="${s.ubicacion}"
-            data-trf-lote="${(f.loteBpcs || '').toString().replace(/"/g, '&quot;')}" ${checked}>
+            data-trf-lote="${(f.loteBpcs || '').toString().replace(/"/g, '&quot;')}"
+            data-trf-iddata="${(f.idData || '').toString().replace(/"/g, '&quot;')}" ${checked}>
         </td>`;
       }).join('');
       return `<tr class="border-b border-surface-variant/70">
@@ -3730,10 +3737,15 @@ function debounce(fn, ms) {
 
     return `
       <div class="mt-3 pt-3 border-t border-dashed border-outline-variant">
-        <p class="text-[11px] font-semibold text-on-surface mb-1.5 flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-[15px]">sync_alt</span> Armar traslado de regularización (TRFMAS)
-        </p>
-        <p class="text-[10px] text-on-surface-variant mb-2">Marca el cruce entre una ubicación <b class="text-error">Faltante</b> (fila) y una <b class="text-[#A86612]">Sobrante</b> (columna). La cantidad se asigna automáticamente como el mínimo entre lo pendiente y lo disponible, sin exceder ninguno de los dos. El lote BPCS del movimiento es el de la ubicación Faltante.</p>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+          <p class="text-[11px] font-semibold text-on-surface flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">sync_alt</span> Traslado de regularización (TRFMAS)
+          </p>
+          <button type="button" data-trf-auto="${codigo}" class="trf-auto-btn flex items-center gap-1 text-[11px] font-semibold text-primary border border-primary rounded-md px-2.5 py-1 hover:bg-primary-fixed">
+            <span class="material-symbols-outlined text-[14px]">bolt</span> Armar automático
+          </button>
+        </div>
+        <p class="text-[10px] text-on-surface-variant mb-2">"Armar automático" cruza cada ubicación <b class="text-error">Faltante</b> contra las <b class="text-[#A86612]">Sobrante</b> disponibles de este código, sin exceder nunca el saldo de ninguna. También puedes marcar o desmarcar manualmente un cruce puntual en la cuadrícula. El lote BPCS y el ID_DATA del movimiento son los de la ubicación Faltante.</p>
         <div class="overflow-x-auto border border-surface-variant rounded-lg">
           <table class="text-[11px] border-collapse w-full">
             <thead class="bg-surface-container-low"><tr class="text-on-surface-variant">
@@ -3751,7 +3763,7 @@ function debounce(fn, ms) {
   document.addEventListener('change', (e) => {
     const cb = e.target.closest('.trf-cell-check');
     if (!cb) return;
-    const codigo = cb.dataset.trfCod, uf = cb.dataset.trfUf, us = cb.dataset.trfUs, lote = cb.dataset.trfLote || '';
+    const codigo = cb.dataset.trfCod, uf = cb.dataset.trfUf, us = cb.dataset.trfUs, lote = cb.dataset.trfLote || '', idData = cb.dataset.trfIddata || '';
 
     if (cb.checked) {
       const pendienteActual = (() => {
@@ -3768,7 +3780,7 @@ function debounce(fn, ms) {
         cb.checked = false;
         return;
       }
-      trfmasTraslados.push({ id: 'trf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), codigo, loteBpcs: lote, qty, ubicFaltante: uf, ubicSobrante: us });
+      trfmasTraslados.push({ id: 'trf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), codigo, loteBpcs: lote, idData, qty, ubicFaltante: uf, ubicSobrante: us });
     } else {
       trfmasTraslados = trfmasTraslados.filter(t => !(t.codigo === codigo && t.ubicFaltante === uf && t.ubicSobrante === us));
     }
@@ -3778,6 +3790,76 @@ function debounce(fn, ms) {
     if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
     if (!document.getElementById('trfmasModalOverlay').classList.contains('hidden')) trfmasRenderModal();
   });
+
+  // Delegación para el botón "Armar automático" de cada código (se regenera en cada render).
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.trf-auto-btn');
+    if (!btn) return;
+    const n = trfmasAutoAsignarCodigo(btn.dataset.trfAuto);
+    trfmasGuardar();
+    trfmasActualizarBadge();
+    if (n === 0) alert('Este código ya no tiene faltante y sobrante pendientes por cruzar (o ya está todo asignado).');
+    if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+    if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
+    if (!document.getElementById('trfmasModalOverlay').classList.contains('hidden')) trfmasRenderModal();
+  });
+
+  // Reparte automáticamente, para un código, cada ubicación Faltante contra las Sobrante
+  // disponibles (en el orden en que aparecen), sin exceder nunca ni el pendiente ni el disponible.
+  // Ya considera lo que ya estaba asignado previamente (manual o de una corrida anterior).
+  function trfmasAutoAsignarCodigo(codigo) {
+    if (typeof obtenerDetalleUbicacionesCodigo !== 'function') return 0;
+    const codCliente = (typeof buscarCodClienteEnSaldo === 'function') ? buscarCodClienteEnSaldo(codigo) : '';
+    const filas = obtenerDetalleUbicacionesCodigo(codigo, codCliente).filter(f => f.origen === 'DETALLE');
+
+    const faltantes = filas.filter(f => f.estatus === 'FALTANTE' && f.ubicacion).map(f => ({
+      ubicacion: f.ubicacion, loteBpcs: f.loteBpcs, idData: f.idData,
+      pendiente: Math.max(0, Math.abs(f.diferencia || 0) - trfmasCalcAsignado(codigo, f.ubicacion, 'FALTANTE'))
+    })).filter(f => f.pendiente > 0);
+
+    const sobrantes = filas.filter(f => f.estatus === 'SOBRANTE' && f.ubicacion).map(f => ({
+      ubicacion: f.ubicacion,
+      disponible: Math.max(0, Math.abs(f.diferencia || 0) - trfmasCalcAsignado(codigo, f.ubicacion, 'SOBRANTE'))
+    })).filter(f => f.disponible > 0);
+
+    let creados = 0, si = 0;
+    for (const f of faltantes) {
+      while (f.pendiente > 0 && si < sobrantes.length) {
+        const s = sobrantes[si];
+        if (s.disponible <= 0) { si++; continue; }
+        const qty = Math.min(f.pendiente, s.disponible);
+        trfmasTraslados.push({
+          id: 'trf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          codigo, loteBpcs: f.loteBpcs, idData: f.idData, qty,
+          ubicFaltante: f.ubicacion, ubicSobrante: s.ubicacion
+        });
+        f.pendiente -= qty;
+        s.disponible -= qty;
+        creados++;
+        if (s.disponible <= 0) si++;
+      }
+    }
+    return creados;
+  }
+
+  // Corre el armado automático sobre todos los códigos con Faltante y Sobrante pendientes a la vez.
+  function trfmasAutoAsignarTodos() {
+    if (typeof computeCodigosFaltSobr !== 'function') { alert('Abre primero la vista "Faltantes / Sobrantes (TRFMAS)".'); return; }
+    const entries = computeCodigosFaltSobr().filter(e => e.ubicFalt.size > 0 && e.ubicSobr.size > 0);
+    let totalCreados = 0, codigosAfectados = 0;
+    entries.forEach(e => {
+      const n = trfmasAutoAsignarCodigo(e.codigo);
+      if (n > 0) { totalCreados += n; codigosAfectados++; }
+    });
+    trfmasGuardar();
+    trfmasActualizarBadge();
+    if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+    if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
+    trfmasRenderModal();
+    alert(totalCreados > 0
+      ? `Se armaron ${totalCreados} traslado(s) nuevos en ${codigosAfectados} código(s).`
+      : 'No había nada pendiente por cruzar: todos los códigos con Faltante y Sobrante ya están asignados.');
+  }
 
   // Bases (sin descontar asignaciones) de pendiente/disponible para un código+ubicación,
   // leídas directamente de DB.data.
@@ -3809,6 +3891,7 @@ function debounce(fn, ms) {
       <tr class="border-b border-surface-variant/70">
         <td class="py-1.5 px-2 font-data">${t.codigo}</td>
         <td class="py-1.5 px-2 font-data">${t.loteBpcs || '-'}</td>
+        <td class="py-1.5 px-2 font-data">${t.idData || '-'}</td>
         <td class="py-1.5 px-2 font-data text-right">${t.qty.toLocaleString('es-PE')}</td>
         <td class="py-1.5 px-2 font-data text-error">${t.ubicFaltante}</td>
         <td class="py-1.5 px-2 font-data text-[#A86612]">${t.ubicSobrante}</td>
@@ -3831,6 +3914,8 @@ function debounce(fn, ms) {
     const headers = ['RCCUS', 'RFRWH', 'RTOWH', 'RBPRD', 'RBLOT', 'RQTYT', 'RFRLC', 'RTOLC', 'RRSNC', 'RNDOC', 'RCOM'];
     const aoa = [headers];
     trfmasTraslados.forEach(t => {
+      const idDataRaw = (t.idData || '').toString().trim();
+      const rndoc = idDataRaw === '' ? null : (isNaN(Number(idDataRaw)) ? idDataRaw : Number(idDataRaw));
       aoa.push([
         23,
         'PG',
@@ -3841,7 +3926,7 @@ function debounce(fn, ms) {
         (t.ubicFaltante || '').toString(),
         (t.ubicSobrante || '').toString(),
         '01',
-        null,
+        rndoc,
         'TRASL. INV'
       ]);
     });
@@ -3877,6 +3962,7 @@ function debounce(fn, ms) {
     if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
   });
   document.getElementById('btnTrfmasExportar').addEventListener('click', exportarTrfmasExcel);
+  document.getElementById('btnTrfmasAutoTodos').addEventListener('click', trfmasAutoAsignarTodos);
 
   trfmasActualizarBadge();
   </script>
