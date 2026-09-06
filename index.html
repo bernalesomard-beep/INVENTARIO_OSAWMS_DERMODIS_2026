@@ -383,6 +383,7 @@
           <table class="w-full text-sm table-fixed">
             <colgroup>
               <col style="width:2rem">
+              <col style="width:2rem">
               <col style="width:3.5rem">
               <col style="width:3.5rem">
               <col style="width:7rem">
@@ -395,6 +396,7 @@
             </colgroup>
             <thead class="sticky top-0 bg-surface-container-low z-10"><tr class="text-left text-on-surface-variant border-b border-outline-variant">
               <th class="py-3 pl-4 pr-1"><input id="dashSelAll" type="checkbox" class="rounded border-outline-variant"></th>
+              <th class="py-3 pl-1 pr-1 w-8"></th>
               <th class="py-3 px-2 font-semibold">Rack</th><th class="py-3 px-2 font-semibold">Nivel</th>
               <th data-sort="UBICACION" class="dash-sort-th py-3 px-2 font-semibold cursor-pointer select-none hover:text-on-surface truncate">Ubicación <span class="sort-icon text-[10px] opacity-40">↕</span></th>
               <th data-sort="CODIGO" class="dash-sort-th py-3 px-2 font-semibold cursor-pointer select-none hover:text-on-surface truncate">Código <span class="sort-icon text-[10px] opacity-40">↕</span></th>
@@ -471,20 +473,33 @@
               </div>
             </div>
             <p class="text-[9px] text-on-surface-variant -mt-2">Considerar el Faltante Real al término del inventario.</p>
-            <div class="bg-primary-fixed/40 border-2 border-primary/30 rounded-xl p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <span class="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold leading-tight">% Exactitud de Inventario</span>
-                  <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5 max-w-[220px]">Ubicación + Código + Cantidad coincidiendo exacto, sobre todo lo ya contado.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="bg-primary-fixed/40 border-2 border-primary/30 rounded-xl p-3 flex flex-col">
+                <span class="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold leading-tight">% Exactitud Ubicación + Código</span>
+                <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5">Ubicación + Código + Cantidad coincidiendo exacto (sumando lotes), sobre lo ya contado.</p>
+                <p id="kpiExactUbiCod" class="text-2xl font-bold font-data text-primary mt-1">-</p>
+                <div class="w-full bg-surface-container-high h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div id="barExactUbiCod" class="bg-primary h-full rounded-full transition-all" style="width:0%"></div>
                 </div>
-                <p id="kpiSaldoExactitud" class="text-3xl font-bold font-data text-primary shrink-0">-</p>
+                <p id="txtExactUbiCod" class="text-[9px] text-on-surface-variant font-data mt-1">- de - combinación(es)</p>
               </div>
-              <div class="w-full bg-surface-container-high h-2 rounded-full mt-2 overflow-hidden">
-                <div id="saldoExactitudBar" class="bg-primary h-full rounded-full transition-all" style="width:0%"></div>
+              <div class="bg-primary-fixed/40 border-2 border-primary/30 rounded-xl p-3 flex flex-col">
+                <span class="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold leading-tight">% Exactitud Ubicación + Código + Lote</span>
+                <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5">Nivel más estricto: Ubicación + Código + Lote + Cantidad coincidiendo exacto.</p>
+                <p id="kpiExactUbiCodLote" class="text-2xl font-bold font-data text-primary mt-1">-</p>
+                <div class="w-full bg-surface-container-high h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div id="barExactUbiCodLote" class="bg-primary h-full rounded-full transition-all" style="width:0%"></div>
+                </div>
+                <p id="txtExactUbiCodLote" class="text-[9px] text-on-surface-variant font-data mt-1">- de - combinación(es)</p>
               </div>
-              <div class="flex items-center justify-between mt-1.5 text-[10px] text-on-surface-variant font-data">
-                <span id="kpiSaldoExactitudUnidTxt">- de - und.</span>
-                <span id="kpiSaldoExactitudLineasTxt">- de - líneas</span>
+              <div class="bg-primary-fixed/40 border-2 border-primary/30 rounded-xl p-3 flex flex-col">
+                <span class="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold leading-tight">% Exactitud Código + Lote</span>
+                <p class="text-[9px] text-on-surface-variant leading-tight mt-0.5">Código + Lote + Cantidad coincidiendo exacto sin importar la ubicación (detecta reubicaciones).</p>
+                <p id="kpiExactCodLote" class="text-2xl font-bold font-data text-primary mt-1">-</p>
+                <div class="w-full bg-surface-container-high h-1.5 rounded-full mt-1.5 overflow-hidden">
+                  <div id="barExactCodLote" class="bg-primary h-full rounded-full transition-all" style="width:0%"></div>
+                </div>
+                <p id="txtExactCodLote" class="text-[9px] text-on-surface-variant font-data mt-1">- de - combinación(es)</p>
               </div>
             </div>
           </div>
@@ -1499,6 +1514,7 @@ let dashEstatusSeleccionados = new Set(); // vacío = todos los estatus
 let dashSelected = new Set(); // keys de filas marcadas con checkbox
 let dashSortField = null; // 'CODIGO' | 'UBICACION' | null
 let dashSortDir = 'asc';
+let dashExpandido = new Set(); // claves de fila (dashRowKey) con el slide de ubicaciones del código abierto
 
 function dashRowKey(r, i) {
   return r.ID_DATA ? String(r.ID_DATA) : `${r.CODIGO || ''}__${r.UBICACION || ''}__${i}`;
@@ -1516,10 +1532,27 @@ function construirMapaObservacionCodigos() {
     const saldo = parseFloat(r.SALDO);
     const cant = parseFloat(r.CANTIDAD);
     const diff = (!isNaN(saldo) && !isNaN(cant)) ? (cant - saldo) : 0;
-    if (!map[cod]) map[cod] = { faltante: false, sobrante: false, suma: 0 };
+    if (!map[cod]) map[cod] = { faltante: false, sobrante: false, suma: 0, manual: false };
     if (est === 'FALTANTE') map[cod].faltante = true;
     if (est === 'SOBRANTE') map[cod].sobrante = true;
     map[cod].suma += diff;
+  });
+
+  // También considera lo reportado en HOJA MANUAL ("NO FIGURA EN UBICACION" / "MAL ESTADO"):
+  // esas unidades encontradas fuera de su ubicación pueden compensar el Faltante de ese mismo
+  // código en otra parte, así que se suman al cálculo de Homologar/Validar.
+  const OBS_HOJA_MANUAL = ['NO FIGURA EN UBICACION', 'MAL ESTADO'];
+  Object.keys(map).forEach(cod => {
+    const codCliente = buscarCodClienteEnSaldo(cod);
+    const manualMatches = DB.manual.filter(m =>
+      manualCoincideConCodigo(m, cod, codCliente) &&
+      OBS_HOJA_MANUAL.includes((m.OBSERVACION || '').toString().trim().toUpperCase())
+    );
+    if (manualMatches.length === 0) return;
+    const cantManual = manualMatches.reduce((s, m) => s + (parseFloat(m.CANTIDAD) || 0), 0);
+    map[cod].manual = true;
+    map[cod].sobrante = true; // lo hallado en Manual se trata como unidades adicionales (tipo sobrante) para el cruce
+    map[cod].suma += cantManual;
   });
   return map;
 }
@@ -1621,6 +1654,7 @@ function renderDashDetailTable() {
     }
   });
 
+  const COLSPAN_DASH = 11;
   document.getElementById('dashDetailTableBody').innerHTML = rows.slice(0, 500).map((r, i) => {
     const saldo = parseFloat(r.SALDO);
     const cant = parseFloat(r.CANTIDAD);
@@ -1631,8 +1665,10 @@ function renderDashDetailTable() {
     const checked = dashSelected.has(key) ? 'checked' : '';
     const estNormRow = normalizarEstatus(r.ESTATUS);
     const obs = obtenerObservacionFila(r, estNormRow, obsMap);
-    return `<tr class="border-b border-surface-variant hover:bg-surface-container-low">
+    const expandido = dashExpandido.has(key);
+    const filaPrincipal = `<tr class="border-b border-surface-variant hover:bg-surface-container-low">
       <td class="py-2 pl-3 pr-1"><input type="checkbox" data-dashrow="${key}" class="dash-row-check rounded border-outline-variant" ${checked}></td>
+      <td class="py-2 pl-1 pr-1 text-center"><button type="button" data-dash-toggle="${key}" data-dash-toggle-codigo="${r.CODIGO || ''}" data-dash-toggle-ubicacion="${r.UBICACION || ''}" class="dash-toggle-btn text-on-surface-variant hover:text-primary" title="Ver ubicaciones de este código"><span class="material-symbols-outlined text-[18px] inline-block transition-transform ${expandido ? 'rotate-90' : ''}">chevron_right</span></button></td>
       <td class="py-2 px-2 font-data font-semibold text-primary truncate">${r.RACK || ''}</td>
       <td class="py-2 px-2 font-data truncate">${r.NIVEL || ''}</td>
       <td class="py-2 px-2 font-data truncate" title="${r.UBICACION || ''}">${r.UBICACION || ''}</td>
@@ -1643,6 +1679,8 @@ function renderDashDetailTable() {
       <td class="py-2 px-2">${estatusBadgeHtmlV2(estNormRow)}</td>
       <td class="py-2 px-2 font-data font-semibold ${obs.cls}">${obs.texto}</td>
     </tr>`;
+    const filaExpandida = expandido ? renderResumenSubtablaHtml(r.CODIGO, r.UBICACION, COLSPAN_DASH) : '';
+    return filaPrincipal + filaExpandida;
   }).join('');
   document.getElementById('dashDetailRowCount').textContent = `Mostrando ${Math.min(rows.length, 500)} de ${rows.length} filas (de ${DB.data.length} totales).`;
 
@@ -1650,6 +1688,13 @@ function renderDashDetailTable() {
     cb.addEventListener('change', () => {
       if (cb.checked) dashSelected.add(cb.dataset.dashrow); else dashSelected.delete(cb.dataset.dashrow);
       updateDashSelUi();
+    });
+  });
+  document.querySelectorAll('.dash-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.dashToggle;
+      if (dashExpandido.has(key)) dashExpandido.delete(key); else dashExpandido.add(key);
+      renderDashDetailTable();
     });
   });
   const selAll = document.getElementById('dashSelAll');
@@ -1697,7 +1742,7 @@ function exportarDashboardExcel(soloSeleccionados) {
     const obs = obtenerObservacionFila(r, estNorm, obsMapExport);
     return {
       RACK: r.RACK || '', NIVEL: r.NIVEL || '', UBICACION: r.UBICACION || '', CODIGO: r.CODIGO || '',
-      DESCRIPCCION: r.DESCRIPCCION || '', SALDO: r.SALDO || '', CANTIDAD: r.CANTIDAD || '',
+      DESCRIPCCION: r.DESCRIPCCION || '', 'LOTE BPCS': r['LOTE BPCS'] || '', SALDO: r.SALDO || '', CANTIDAD: r.CANTIDAD || '',
       DIFERENCIA: diff, ESTATUS: estNorm, OBSERVACION: obs.texto, REGISTRO: r.REGISTRO || r.FECHA || ''
     };
   });
@@ -1747,8 +1792,19 @@ function buscarDescripcionMaestra(codigo, codigoAlterno) {
   return fila ? (fila.DESCRIPCCION || '') : '';
 }
 
+// Busca en la hoja SALDO el Cód. Cliente asociado a un Cód. BPCS, para que el cruce
+// contra HOJA MANUAL (que a veces registra el código Cliente) también funcione cuando
+// solo se conoce el código BPCS (ej. desde "Resumen de Precisión de Líneas").
+function buscarCodClienteEnSaldo(codBpcs) {
+  const cod = (codBpcs || '').toString().trim().toUpperCase();
+  if (!cod) return '';
+  const fila = DB.saldo.find(s => (s['COD.PROD.BPCS'] || '').toString().trim().toUpperCase() === cod);
+  return fila ? (fila['COD.PROD.CLIENTE'] || '') : '';
+}
+
 // Arma el detalle de ubicaciones inventariadas para un código (cruzando DATA y HOJA MANUAL),
-// para mostrarlo en el slide expandible de "Detalle de Saldo por Código".
+// para mostrarlo en el slide expandible de "Detalle de Saldo por Código" y en el de
+// "Resumen de Precisión de Líneas".
 function obtenerDetalleUbicacionesCodigo(codBpcs, codCliente) {
   const cod = (codBpcs || '').toString().trim().toUpperCase();
   const obsMap = construirMapaObservacionCodigos();
@@ -1767,6 +1823,7 @@ function obtenerDetalleUbicacionesCodigo(codBpcs, codCliente) {
         ubicacion: d.UBICACION || '', codigo: d.CODIGO || '', descripcion,
         descripcionDeMaestra: !descOriginal && !!descripcion,
         cantidad: isNaN(saldo) ? null : saldo, conteo: isNaN(conteo) ? null : conteo, diferencia: diff,
+        estatus: estNorm, loteBpcs: d['LOTE BPCS'] || '',
         observacion: obtenerObservacionFila(d, estNorm, obsMap).texto, usuario: d.USUARIO || ''
       };
     });
@@ -1782,6 +1839,7 @@ function obtenerDetalleUbicacionesCodigo(codBpcs, codCliente) {
         ubicacion: m['UBICACIÓN'] || '', codigo: m.CODIGO || '', descripcion,
         descripcionDeMaestra: !descOriginal && !!descripcion,
         cantidad: null, conteo: isNaN(conteo) ? null : conteo, diferencia: null,
+        estatus: 'MANUAL', loteBpcs: m['LOTE BPCS'] || '',
         observacion: m.OBSERVACION || '', usuario: m.USUARIO || ''
       };
     });
@@ -1822,6 +1880,91 @@ function renderSaldoSubtablaHtml(codBpcs, codCliente, colspan) {
           <th class="py-1.5 px-3 font-semibold text-right whitespace-nowrap">Conteo</th>
           <th class="py-1.5 px-3 font-semibold text-right whitespace-nowrap">Diferencia</th>
           <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Observación</th>
+          <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Usuario</th>
+        </tr></thead>
+        <tbody>${filasHtml}</tbody>
+      </table>
+    </div>
+  </td></tr>`;
+}
+
+// Arma el slide expandible de una línea de "Resumen de Precisión de Líneas": muestra, para el
+// código de esa línea, TODAS sus ubicaciones registradas en DATA (cuáles ya están revisadas y
+// cuáles faltan) y si ese código también aparece registrado en HOJA MANUAL.
+function renderResumenSubtablaHtml(codigo, ubicacionActual, colspan) {
+  const codUpper = (codigo || '').toString().trim().toUpperCase();
+  const codCliente = buscarCodClienteEnSaldo(codigo);
+  const filas = obtenerDetalleUbicacionesCodigo(codigo, codCliente);
+  const filasDetalle = filas.filter(f => f.origen === 'DETALLE');
+  const filasManual = filas.filter(f => f.origen === 'MANUAL');
+  // Lo registrado en Hoja Manual también cuenta como "ya revisado" para este código
+  // (es una ubicación/hallazgo ya verificado, no algo pendiente de contar).
+  const totalUbicaciones = filasDetalle.length + filasManual.length;
+  const revisadas = filasDetalle.filter(f => f.estatus !== 'PENDIENTE').length + filasManual.length;
+  const faltanRevisar = filasDetalle.filter(f => f.estatus === 'PENDIENTE').length;
+
+  const obsMap = construirMapaObservacionCodigos();
+  const infoObs = obsMap[codUpper];
+  let badgeHomologar = '';
+  if (infoObs && infoObs.faltante && infoObs.sobrante) {
+    const cuadra = Math.abs(infoObs.suma) < 0.001;
+    const sufijoManual = infoObs.manual ? ' (incluye Hoja Manual)' : '';
+    badgeHomologar = cuadra
+      ? `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-success-container text-on-success-container">Homologar: tiene Faltante y Sobrante, pero se compensan entre ubicaciones${sufijoManual}</span>`
+      : `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-[#FBEED8] text-[#A86612]">Validar: tiene Faltante y Sobrante, no se compensan del todo${sufijoManual}</span>`;
+  }
+
+  const resumenHtml = `
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+      <span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-surface-container text-on-surface">
+        ${revisadas} de ${totalUbicaciones} ubicación(es)/registro(s) de este código ya revisados
+      </span>
+      ${faltanRevisar > 0
+        ? `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-error-container text-on-error-container">${faltanRevisar} ubicación(es) aún faltan por revisar</span>`
+        : `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-success-container text-on-success-container">Todas las ubicaciones de este código están revisadas</span>`}
+      ${filasManual.length > 0
+        ? `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700">Este código SÍ está en Hoja Manual (${filasManual.length})</span>`
+        : `<span class="text-[11px] font-semibold px-2 py-1 rounded-full bg-surface-container-high text-on-surface-variant">Este código no está en Hoja Manual</span>`}
+      ${badgeHomologar}
+    </div>`;
+
+  if (filas.length === 0) {
+    return `<tr class="bg-surface-container-low"><td colspan="${colspan}" class="px-6 py-3">${resumenHtml}<p class="text-xs text-on-surface-variant">Sin ubicaciones registradas para este código.</p></td></tr>`;
+  }
+
+  const ubicActualNorm = (ubicacionActual || '').toString().trim().toUpperCase();
+  const filasHtml = filas.map(f => {
+    const esActual = (f.ubicacion || '').toString().trim().toUpperCase() === ubicActualNorm && f.origen === 'DETALLE';
+    const badgeOrigen = f.origen === 'MANUAL'
+      ? '<span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 ml-1.5 align-middle">Manual</span>'
+      : '';
+    const diffTxt = f.diferencia === null ? '-' : (f.diferencia > 0 ? '+' + f.diferencia.toLocaleString('es-PE') : f.diferencia.toLocaleString('es-PE'));
+    const diffCls = f.diferencia === null ? 'text-on-surface-variant' : f.diferencia === 0 ? '' : (f.diferencia > 0 ? 'text-[#A86612]' : 'text-error');
+    const estatusHtml = f.origen === 'MANUAL'
+      ? '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Reg. Manual</span>'
+      : estatusBadgeHtmlV2(f.estatus);
+    return `<tr class="border-b border-surface-variant/70 ${esActual ? 'bg-primary-fixed/40' : ''}">
+      <td class="py-1.5 px-3 font-data whitespace-nowrap">${f.ubicacion || '-'}${badgeOrigen}${esActual ? ' <span class="text-[9px] italic text-primary">(esta línea)</span>' : ''}</td>
+      <td class="py-1.5 px-3 font-data whitespace-nowrap">${f.loteBpcs || '-'}</td>
+      <td class="py-1.5 px-3">${estatusHtml}</td>
+      <td class="py-1.5 px-3 font-data text-right">${f.cantidad === null ? '-' : f.cantidad.toLocaleString('es-PE')}</td>
+      <td class="py-1.5 px-3 font-data text-right">${f.conteo === null ? '-' : f.conteo.toLocaleString('es-PE')}</td>
+      <td class="py-1.5 px-3 font-data text-right ${diffCls}">${diffTxt}</td>
+      <td class="py-1.5 px-3">${f.usuario || '-'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<tr class="bg-surface-container-low"><td colspan="${colspan}" class="p-0">
+    <div class="px-4 py-3">
+      ${resumenHtml}
+      <table class="w-full text-[11px]">
+        <thead><tr class="text-left text-on-surface-variant border-b border-outline-variant">
+          <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Ubicación</th>
+          <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Lote BPCS</th>
+          <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Estatus</th>
+          <th class="py-1.5 px-3 font-semibold text-right whitespace-nowrap">Saldo</th>
+          <th class="py-1.5 px-3 font-semibold text-right whitespace-nowrap">Conteo</th>
+          <th class="py-1.5 px-3 font-semibold text-right whitespace-nowrap">Diferencia</th>
           <th class="py-1.5 px-3 font-semibold whitespace-nowrap">Usuario</th>
         </tr></thead>
         <tbody>${filasHtml}</tbody>
@@ -1914,6 +2057,47 @@ function computeDuplicados() {
   return duplicados;
 }
 
+// Calcula el % de exactitud agrupando las filas de DATA ya contadas (ESTATUS != PENDIENTE)
+// por la clave que indique claveFn (ej. Ubicación+Código, Ubicación+Código+Lote, Código+Lote),
+// sumando Saldo y Cantidad dentro de cada grupo y comparando ambos totales.
+function calcularExactitudPorClave(claveFn) {
+  const grupos = new Map();
+  DB.data.forEach(d => {
+    if (normalizarEstatus(d.ESTATUS) === 'PENDIENTE') return;
+    const clave = claveFn(d);
+    if (!clave) return;
+    if (!grupos.has(clave)) grupos.set(clave, { saldo: 0, cantidad: 0 });
+    const g = grupos.get(clave);
+    g.saldo += parseFloat(d.SALDO) || 0;
+    g.cantidad += parseFloat(d.CANTIDAD) || 0;
+  });
+  let exactos = 0;
+  grupos.forEach(g => { if (Math.abs(g.cantidad - g.saldo) < 0.001) exactos++; });
+  const total = grupos.size;
+  return { exactos, total, pct: total > 0 ? (exactos / total * 100) : null };
+}
+function claveUbicacionCodigo(d) {
+  const u = (d.UBICACION || '').toString().trim().toUpperCase();
+  const c = (d.CODIGO || '').toString().trim().toUpperCase();
+  return (u && c) ? (u + '|' + c) : null;
+}
+function claveUbicacionCodigoLote(d) {
+  const u = (d.UBICACION || '').toString().trim().toUpperCase();
+  const c = (d.CODIGO || '').toString().trim().toUpperCase();
+  const l = (d.LOTE || '').toString().trim().toUpperCase();
+  return (u && c) ? (u + '|' + c + '|' + l) : null;
+}
+function claveCodigoLote(d) {
+  const c = (d.CODIGO || '').toString().trim().toUpperCase();
+  const l = (d.LOTE || '').toString().trim().toUpperCase();
+  return c ? (c + '|' + l) : null;
+}
+function pintarExactitud(idPct, idBar, idTxt, resultado) {
+  document.getElementById(idPct).textContent = resultado.pct === null ? '—' : resultado.pct.toFixed(1) + '%';
+  document.getElementById(idBar).style.width = (resultado.pct === null ? 0 : Math.min(resultado.pct, 100)).toFixed(1) + '%';
+  document.getElementById(idTxt).textContent = `${resultado.exactos.toLocaleString('es-PE')} de ${resultado.total.toLocaleString('es-PE')} combinación(es)`;
+}
+
 function renderSaldoResumen() {
   const rows = saldoRowsCache;
   const total = rows.length;
@@ -1966,28 +2150,12 @@ function renderSaldoResumen() {
   });
   const totalEstatusCodigos = conteo.OK + conteo.SOBRANTE + conteo.FALTANTE + conteo.PENDIENTE;
 
-  // % Exactitud de Inventario: a nivel de LÍNEA (Ubicación + Código + Cantidad exacta), tomado del
-  // log real de conteos (DB.detalle) — esto sigue siendo por línea porque un código puede tener
-  // líneas conformes y líneas con diferencia a la vez, algo que el cruce por código no distingue.
-  const filasDetalleData = DB.detalle.filter(d => (d.TIPO || '').toString().trim().toUpperCase() === 'DATA');
-  let lineasOK = 0, lineasEvaluadas = 0;
-  filasDetalleData.forEach(d => {
-    const est = normalizarEstatus(d.ESTATUS);
-    if (est === 'OK' || est === 'SOBRANTE' || est === 'FALTANTE') {
-      lineasEvaluadas++;
-      if (est === 'OK') lineasOK++;
-    }
-  });
-
-  // % Exactitud de Inventario: de todo lo YA CONTADO (Conforme+Sobrante+Faltante), cuánto coincide
-  // exacto en Ubicación + Código + Cantidad (estatus OK), tanto en unidades como en líneas.
-  const unidadesEvaluadas = conteoUnid.OK + conteoUnid.SOBRANTE + conteoUnid.FALTANTE;
-  const pctExactitudUnid = unidadesEvaluadas > 0 ? (conteoUnid.OK / unidadesEvaluadas * 100) : null;
-  const pctExactitudLineas = lineasEvaluadas > 0 ? (lineasOK / lineasEvaluadas * 100) : null;
-  document.getElementById('kpiSaldoExactitud').textContent = pctExactitudUnid === null ? '—' : pctExactitudUnid.toFixed(1) + '%';
-  document.getElementById('saldoExactitudBar').style.width = (pctExactitudUnid === null ? 0 : Math.min(pctExactitudUnid, 100)).toFixed(1) + '%';
-  document.getElementById('kpiSaldoExactitudUnidTxt').textContent = `${Math.round(conteoUnid.OK).toLocaleString('es-PE')} de ${Math.round(unidadesEvaluadas).toLocaleString('es-PE')} und.`;
-  document.getElementById('kpiSaldoExactitudLineasTxt').textContent = `${lineasOK.toLocaleString('es-PE')} de ${lineasEvaluadas.toLocaleString('es-PE')} líneas (${pctExactitudLineas === null ? '—' : pctExactitudLineas.toFixed(1) + '%'})`;
+  // % Exactitud de Inventario en 3 niveles: por Ubicación+Código (ignora Lote, sumando lotes),
+  // por Ubicación+Código+Lote (el más estricto) y por Código+Lote (ignora Ubicación, detecta
+  // si el producto/lote/cantidad cuadra en otra ubicación distinta a la esperada).
+  pintarExactitud('kpiExactUbiCod', 'barExactUbiCod', 'txtExactUbiCod', calcularExactitudPorClave(claveUbicacionCodigo));
+  pintarExactitud('kpiExactUbiCodLote', 'barExactUbiCodLote', 'txtExactUbiCodLote', calcularExactitudPorClave(claveUbicacionCodigoLote));
+  pintarExactitud('kpiExactCodLote', 'barExactCodLote', 'txtExactCodLote', calcularExactitudPorClave(claveCodigoLote));
 
   // "Total Real Contado": todo lo contado (Inventariado + Hoja Manual, cualquier estatus) menos el
   // exceso registrado en Sobrante — así el excedente no infla el total, y se refleja cuánto se lleva
