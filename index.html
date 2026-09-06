@@ -192,6 +192,9 @@
         <button id="dashSubBtnDuplicados" data-dash-sub="duplicados" class="dash-sub-btn flex items-center gap-1.5 text-sm font-semibold rounded-md px-3 py-1.5 text-on-surface-variant transition-colors">
           <span class="material-symbols-outlined text-[18px]">content_copy</span> Duplicados
         </button>
+        <button id="dashSubBtnTrfmas" data-dash-sub="trfmas" class="dash-sub-btn flex items-center gap-1.5 text-sm font-semibold rounded-md px-3 py-1.5 text-on-surface-variant transition-colors">
+          <span class="material-symbols-outlined text-[18px]">sync_alt</span> Faltantes / Sobrantes (TRFMAS)
+        </button>
       </div>
 
       <!-- ===== SUBVISTA: MONITOREO ===== -->
@@ -655,6 +658,72 @@
         </div>
       </div>
       <!-- ===== fin SUBVISTA: DUPLICADOS ===== -->
+
+      <!-- ===== SUBVISTA: FALTANTES / SOBRANTES (TRFMAS) ===== -->
+      <div id="dashSubTrfmas" class="dash-subview">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-6">
+          <div class="bg-white border border-outline-variant rounded-xl p-5">
+            <span class="text-[11px] uppercase tracking-wide text-on-surface-variant font-semibold">Códigos con cruce posible</span>
+            <p id="kpiTrfCodigosCruce" class="text-3xl font-bold font-data mt-1">-</p>
+            <p class="text-[11px] text-on-surface-variant mt-1">Tienen ubicaciones Faltante y Sobrante a la vez</p>
+          </div>
+          <div class="bg-white border border-outline-variant rounded-xl p-5">
+            <span class="text-[11px] uppercase tracking-wide text-on-surface-variant font-semibold">Total Faltante pendiente</span>
+            <p id="kpiTrfFaltantePend" class="text-3xl font-bold font-data mt-1 text-error">-</p>
+            <p class="text-[11px] text-on-surface-variant mt-1">Unidades que aún no se han cruzado con un sobrante</p>
+          </div>
+          <div class="bg-white border border-outline-variant rounded-xl p-5">
+            <span class="text-[11px] uppercase tracking-wide text-on-surface-variant font-semibold">Total Sobrante disponible</span>
+            <p id="kpiTrfSobranteDisp" class="text-3xl font-bold font-data mt-1 text-[#A86612]">-</p>
+            <p class="text-[11px] text-on-surface-variant mt-1">Unidades sobrantes aún sin asignar a un traslado</p>
+          </div>
+          <div class="bg-white border border-outline-variant rounded-xl p-5">
+            <span class="text-[11px] uppercase tracking-wide text-on-surface-variant font-semibold">Traslados armados</span>
+            <p id="kpiTrfArmados" class="text-3xl font-bold font-data mt-1 text-primary">-</p>
+            <p class="text-[11px] text-on-surface-variant mt-1">Listos para exportar a TRFMAS.xlsx</p>
+          </div>
+        </div>
+
+        <div class="bg-white border border-outline-variant rounded-xl flex flex-col overflow-hidden">
+          <div class="p-4 border-b border-outline-variant bg-surface-container-low flex flex-col gap-2.5 rounded-t-xl">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h4 class="font-semibold text-sm">Códigos con Faltante y/o Sobrante</h4>
+              <button id="btnTrfmasPanel2" type="button" class="flex items-center gap-1.5 text-xs border border-primary text-primary rounded-lg px-3 py-1.5 hover:bg-primary-fixed font-semibold">
+                <span class="material-symbols-outlined text-[16px]">sync_alt</span>
+                Ver / exportar traslados
+              </button>
+            </div>
+            <p class="text-xs text-on-surface-variant">Abre un código para ver la cuadrícula de cruce (Faltante × Sobrante) y armar los traslados de regularización. Solo los códigos con ambos estatus a la vez permiten armar un traslado.</p>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="relative flex-1 min-w-[220px]">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+                <input id="trfViewFiltro" type="text" autocomplete="off" placeholder="Filtrar por código, descripción o ubicación" class="w-full pl-9 rounded-lg border-outline-variant focus:border-primary focus:ring-primary text-sm font-data">
+              </div>
+              <label class="flex items-center gap-1.5 text-xs text-on-surface-variant cursor-pointer">
+                <input id="trfViewSoloCruce" type="checkbox" checked class="rounded border-outline-variant"> Solo códigos con cruce posible (Faltante y Sobrante)
+              </label>
+            </div>
+          </div>
+          <div class="overflow-x-auto overflow-y-auto flex-1 max-h-[60vh]">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-surface-container-low z-10"><tr class="text-left text-on-surface-variant border-b border-outline-variant">
+                <th class="py-2 pl-3 pr-1 w-8"></th>
+                <th class="py-2 px-2 font-semibold whitespace-nowrap">Código</th>
+                <th class="py-2 px-2 font-semibold whitespace-nowrap">Descripción</th>
+                <th class="py-2 px-2 font-semibold text-right whitespace-nowrap">Ubic. Faltante</th>
+                <th class="py-2 px-2 font-semibold text-right whitespace-nowrap text-error">Total Faltante</th>
+                <th class="py-2 px-2 font-semibold text-right whitespace-nowrap">Ubic. Sobrante</th>
+                <th class="py-2 px-2 font-semibold text-right whitespace-nowrap text-[#A86612]">Total Sobrante</th>
+                <th class="py-2 px-2 font-semibold whitespace-nowrap">Estado</th>
+                <th class="py-2 px-2 font-semibold text-right whitespace-nowrap">Traslados</th>
+              </tr></thead>
+              <tbody id="trfViewTableBody"></tbody>
+            </table>
+          </div>
+          <p id="trfViewRowCount" class="text-xs text-on-surface-variant p-4 border-t border-outline-variant"></p>
+        </div>
+      </div>
+      <!-- ===== fin SUBVISTA: FALTANTES / SOBRANTES (TRFMAS) ===== -->
     </section>
 
     <!-- ===== PANEL: TOMA DE INVENTARIO ===== -->
@@ -1251,10 +1320,11 @@ document.querySelectorAll('.dash-sub-btn').forEach(btn => {
     btn.classList.add('active');
     btn.classList.remove('text-on-surface-variant');
     document.querySelectorAll('.dash-subview').forEach(v => v.classList.remove('active'));
-    const map = { saldo: 'dashSubSaldo', duplicados: 'dashSubDuplicados' };
+    const map = { saldo: 'dashSubSaldo', duplicados: 'dashSubDuplicados', trfmas: 'dashSubTrfmas' };
     const target = map[btn.dataset.dashSub] || 'dashSubMonitoreo';
     document.getElementById(target).classList.add('active');
     if (btn.dataset.dashSub === 'duplicados') renderDuplicados();
+    if (btn.dataset.dashSub === 'trfmas') renderTrfmasView();
   });
 });
 
@@ -1297,6 +1367,109 @@ function renderDuplicados() {
   });
 }
 document.getElementById('dupFiltro') && document.getElementById('dupFiltro').addEventListener('input', debounce(renderDuplicados, 200));
+
+/* ==================== SUBVISTA: FALTANTES / SOBRANTES (TRFMAS) ==================== */
+let trfViewExpandido = new Set(); // códigos con el detalle/cuadrícula abierto en esta subvista
+
+function computeCodigosFaltSobr() {
+  const map = {};
+  (DB.data || []).forEach(d => {
+    const cod = (d.CODIGO || '').toString().trim();
+    if (!cod) return;
+    const est = normalizarEstatus(d.ESTATUS);
+    if (est !== 'FALTANTE' && est !== 'SOBRANTE') return;
+    if (!map[cod]) map[cod] = { codigo: cod, descripcion: '', ubicFalt: new Set(), ubicSobr: new Set(), totalFalt: 0, totalSobr: 0 };
+    if (!map[cod].descripcion && d.DESCRIPCCION) map[cod].descripcion = d.DESCRIPCCION;
+    const saldo = parseFloat(d.SALDO), cant = parseFloat(d.CANTIDAD);
+    const diff = (!isNaN(saldo) && !isNaN(cant)) ? (cant - saldo) : 0;
+    if (est === 'FALTANTE' && d.UBICACION) { map[cod].ubicFalt.add(d.UBICACION); map[cod].totalFalt += Math.abs(diff); }
+    if (est === 'SOBRANTE' && d.UBICACION) { map[cod].ubicSobr.add(d.UBICACION); map[cod].totalSobr += Math.abs(diff); }
+  });
+  return Object.values(map);
+}
+
+function renderTrfmasView() {
+  const filtroEl = document.getElementById('trfViewFiltro');
+  const filtro = filtroEl ? filtroEl.value.toUpperCase().trim() : '';
+  const soloCruce = document.getElementById('trfViewSoloCruce').checked;
+  const obsMap = construirMapaObservacionCodigos();
+
+  let entries = computeCodigosFaltSobr();
+  if (soloCruce) entries = entries.filter(e => e.ubicFalt.size > 0 && e.ubicSobr.size > 0);
+  if (filtro) {
+    entries = entries.filter(e => {
+      if (e.codigo.toUpperCase().includes(filtro)) return true;
+      if ((e.descripcion || '').toUpperCase().includes(filtro)) return true;
+      if ([...e.ubicFalt, ...e.ubicSobr].some(u => (u || '').toUpperCase().includes(filtro))) return true;
+      return false;
+    });
+  }
+  entries.sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }));
+
+  // KPIs (siempre sobre el universo completo con cruce posible, sin importar el filtro de texto)
+  const todosCruce = computeCodigosFaltSobr().filter(e => e.ubicFalt.size > 0 && e.ubicSobr.size > 0);
+  document.getElementById('kpiTrfCodigosCruce').textContent = todosCruce.length.toLocaleString('es-PE');
+  const totalFaltPend = todosCruce.reduce((s, e) => s + Math.max(0, e.totalFalt - trfmasTotalAsignadoCodigo(e.codigo, 'FALTANTE')), 0);
+  const totalSobrDisp = todosCruce.reduce((s, e) => s + Math.max(0, e.totalSobr - trfmasTotalAsignadoCodigo(e.codigo, 'SOBRANTE')), 0);
+  document.getElementById('kpiTrfFaltantePend').textContent = Math.round(totalFaltPend).toLocaleString('es-PE');
+  document.getElementById('kpiTrfSobranteDisp').textContent = Math.round(totalSobrDisp).toLocaleString('es-PE');
+  document.getElementById('kpiTrfArmados').textContent = trfmasTraslados.length.toLocaleString('es-PE');
+
+  const tbody = document.getElementById('trfViewTableBody');
+  if (entries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-on-surface-variant">No hay códigos que coincidan con el filtro.</td></tr>`;
+    document.getElementById('trfViewRowCount').textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = entries.map(e => {
+    const expandido = trfViewExpandido.has(e.codigo);
+    const infoObs = obsMap[e.codigo.toUpperCase()];
+    let estadoHtml = '<span class="text-[10px] text-on-surface-variant">Sin cruce posible</span>';
+    if (infoObs && infoObs.faltante && infoObs.sobrante) {
+      const cuadra = Math.abs(infoObs.suma) < 0.001;
+      estadoHtml = cuadra
+        ? '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success-container text-on-success-container">Homologar</span>'
+        : '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FBEED8] text-[#A86612]">Validar</span>';
+    }
+    const nTraslados = trfmasTraslados.filter(t => t.codigo === e.codigo).length;
+    const filaPrincipal = `<tr class="border-b border-surface-variant hover:bg-surface-container-low">
+      <td class="py-2 pl-3 pr-1 text-center"><button type="button" data-trfview-toggle="${e.codigo}" class="trfview-toggle-btn text-on-surface-variant hover:text-primary" title="Ver detalle y armar traslado"><span class="material-symbols-outlined text-[18px] inline-block transition-transform ${expandido ? 'rotate-90' : ''}">chevron_right</span></button></td>
+      <td class="py-2 px-2 font-data font-semibold text-primary truncate" title="${e.codigo}">${e.codigo}</td>
+      <td class="py-2 px-2 truncate max-w-[220px]" title="${e.descripcion || ''}">${e.descripcion || '-'}</td>
+      <td class="py-2 px-2 font-data text-right">${e.ubicFalt.size}</td>
+      <td class="py-2 px-2 font-data text-right text-error">${Math.round(e.totalFalt).toLocaleString('es-PE')}</td>
+      <td class="py-2 px-2 font-data text-right">${e.ubicSobr.size}</td>
+      <td class="py-2 px-2 font-data text-right text-[#A86612]">${Math.round(e.totalSobr).toLocaleString('es-PE')}</td>
+      <td class="py-2 px-2">${estadoHtml}</td>
+      <td class="py-2 px-2 font-data text-right ${nTraslados > 0 ? 'text-primary font-semibold' : 'text-on-surface-variant'}">${nTraslados}</td>
+    </tr>`;
+    const filaExpandida = expandido ? renderResumenSubtablaHtml(e.codigo, '', 9) : '';
+    return filaPrincipal + filaExpandida;
+  }).join('');
+
+  document.getElementById('trfViewRowCount').textContent = `Mostrando ${entries.length} código(s).`;
+
+  tbody.querySelectorAll('.trfview-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cod = btn.dataset.trfviewToggle;
+      if (trfViewExpandido.has(cod)) trfViewExpandido.delete(cod); else trfViewExpandido.add(cod);
+      renderTrfmasView();
+    });
+  });
+}
+
+// Cuánto se ha asignado en traslados para un código, sumando todas sus ubicaciones en el rol dado.
+function trfmasTotalAsignadoCodigo(codigo, rol) {
+  return trfmasTraslados.reduce((s, t) => {
+    if (t.codigo !== codigo) return s;
+    return s + t.qty;
+  }, 0);
+}
+
+document.getElementById('trfViewFiltro') && document.getElementById('trfViewFiltro').addEventListener('input', debounce(renderTrfmasView, 200));
+document.getElementById('trfViewSoloCruce') && document.getElementById('trfViewSoloCruce').addEventListener('change', renderTrfmasView);
+
 
 
 /* ==================== DASHBOARD EJECUTIVO ==================== */
@@ -3602,6 +3775,7 @@ function debounce(fn, ms) {
     trfmasGuardar();
     trfmasActualizarBadge();
     if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+    if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
     if (!document.getElementById('trfmasModalOverlay').classList.contains('hidden')) trfmasRenderModal();
   });
 
@@ -3647,6 +3821,7 @@ function debounce(fn, ms) {
         trfmasActualizarBadge();
         trfmasRenderModal();
         if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+        if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
       });
     });
   }
@@ -3681,6 +3856,10 @@ function debounce(fn, ms) {
     trfmasRenderModal();
     document.getElementById('trfmasModalOverlay').classList.remove('hidden');
   });
+  document.getElementById('btnTrfmasPanel2') && document.getElementById('btnTrfmasPanel2').addEventListener('click', () => {
+    trfmasRenderModal();
+    document.getElementById('trfmasModalOverlay').classList.remove('hidden');
+  });
   document.getElementById('trfmasModalClose').addEventListener('click', () => {
     document.getElementById('trfmasModalOverlay').classList.add('hidden');
   });
@@ -3695,6 +3874,7 @@ function debounce(fn, ms) {
     trfmasActualizarBadge();
     trfmasRenderModal();
     if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+    if (typeof renderTrfmasView === 'function' && document.getElementById('dashSubTrfmas') && document.getElementById('dashSubTrfmas').classList.contains('active')) renderTrfmasView();
   });
   document.getElementById('btnTrfmasExportar').addEventListener('click', exportarTrfmasExcel);
 
