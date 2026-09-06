@@ -293,7 +293,13 @@
       <!-- Detailed table (independent date range + filters) -->
       <div class="bg-white border border-outline-variant rounded-xl">
         <div class="p-5 border-b border-outline-variant bg-surface-container-low flex flex-col gap-3 rounded-t-xl">
-          <h3 class="font-semibold">Resumen de Precisión de Líneas</h3>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-semibold">Resumen de Precisión de Líneas</h3>
+            <button id="btnTrfmasPanel" type="button" class="flex items-center gap-1.5 text-xs border border-primary text-primary rounded-lg px-3 py-1.5 hover:bg-primary-fixed font-semibold">
+              <span class="material-symbols-outlined text-[16px]">sync_alt</span>
+              Traslados armados (TRFMAS): <span id="trfmasCountBadge">0</span>
+            </button>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             <div class="relative">
               <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
@@ -1954,6 +1960,8 @@ function renderResumenSubtablaHtml(codigo, ubicacionActual, colspan) {
     </tr>`;
   }).join('');
 
+  const trfmasGridHtml = renderTrfmasGridHtml(codUpper, filasDetalle);
+
   return `<tr class="bg-surface-container-low"><td colspan="${colspan}" class="p-0">
     <div class="px-4 py-3">
       ${resumenHtml}
@@ -1969,6 +1977,7 @@ function renderResumenSubtablaHtml(codigo, ubicacionActual, colspan) {
         </tr></thead>
         <tbody>${filasHtml}</tbody>
       </table>
+      ${trfmasGridHtml}
     </div>
   </td></tr>`;
 }
@@ -3441,5 +3450,255 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 </script>
+  <!-- Modal: Panel de Traslados TRFMAS -->
+  <div id="trfmasModalOverlay" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+      <div class="p-5 border-b border-outline-variant flex items-center justify-between">
+        <div>
+          <h3 class="font-semibold text-lg">Traslados de Regularización (TRFMAS)</h3>
+          <p class="text-xs text-on-surface-variant mt-0.5">Movimientos armados desde el Resumen de Precisión de Líneas, listos para exportar a la plantilla TRFMAS.</p>
+        </div>
+        <button id="trfmasModalClose" class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="p-5 overflow-y-auto flex-1">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-white"><tr class="text-left text-on-surface-variant border-b border-outline-variant">
+            <th class="py-2 px-2 font-semibold">Código</th>
+            <th class="py-2 px-2 font-semibold">Lote BPCS</th>
+            <th class="py-2 px-2 font-semibold text-right">Cantidad</th>
+            <th class="py-2 px-2 font-semibold">De (Faltante)</th>
+            <th class="py-2 px-2 font-semibold">A (Sobrante)</th>
+            <th class="py-2 px-2 font-semibold"></th>
+          </tr></thead>
+          <tbody id="trfmasModalBody"></tbody>
+        </table>
+        <p id="trfmasModalEmpty" class="text-xs text-on-surface-variant py-6 text-center hidden">Aún no has armado ningún traslado. Ve a un código en "Resumen de Precisión de Líneas", ábrelo y marca los cruces Faltante ↔ Sobrante en la cuadrícula.</p>
+      </div>
+      <div class="p-5 border-t border-outline-variant flex flex-wrap items-center justify-between gap-2">
+        <button id="btnTrfmasVaciar" class="text-xs text-error hover:underline">Vaciar todos los traslados</button>
+        <button id="btnTrfmasExportar" class="flex items-center gap-1.5 text-xs bg-primary text-on-primary rounded-lg px-4 py-2 hover:opacity-90 font-semibold">
+          <span class="material-symbols-outlined text-[16px]">download</span> Exportar TRFMAS.xlsx
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ==================== TRASLADOS TRFMAS (regularización Faltante -> Sobrante) ==================== */
+  const TRFMAS_STORAGE_KEY = 'invent2026_trfmas_traslados_v1';
+  let trfmasTraslados = [];
+  (function cargarTrfmasGuardados() {
+    try {
+      const raw = localStorage.getItem(TRFMAS_STORAGE_KEY);
+      if (raw) trfmasTraslados = JSON.parse(raw) || [];
+    } catch (e) { trfmasTraslados = []; }
+  })();
+
+  function trfmasGuardar() {
+    try { localStorage.setItem(TRFMAS_STORAGE_KEY, JSON.stringify(trfmasTraslados)); } catch (e) {}
+  }
+
+  // Cantidad ya comprometida en traslados para un código+ubicación, según el rol que juega
+  // esa ubicación (FALTANTE = origen, SOBRANTE = destino).
+  function trfmasCalcAsignado(codigo, ubicacion, rol) {
+    return trfmasTraslados.reduce((s, t) => {
+      if (t.codigo !== codigo) return s;
+      if (rol === 'FALTANTE' && t.ubicFaltante === ubicacion) return s + t.qty;
+      if (rol === 'SOBRANTE' && t.ubicSobrante === ubicacion) return s + t.qty;
+      return s;
+    }, 0);
+  }
+
+  function trfmasActualizarBadge() {
+    const el = document.getElementById('trfmasCountBadge');
+    if (el) el.textContent = trfmasTraslados.length;
+  }
+
+  // Arma la cuadrícula Faltante x Sobrante para un código dentro de su slide expandible.
+  function renderTrfmasGridHtml(codigo, filasDetalle) {
+    const faltantes = filasDetalle.filter(f => f.estatus === 'FALTANTE' && f.ubicacion);
+    const sobrantes = filasDetalle.filter(f => f.estatus === 'SOBRANTE' && f.ubicacion);
+    if (faltantes.length === 0 || sobrantes.length === 0) return '';
+
+    const pend = (ubic) => {
+      const fila = faltantes.find(f => f.ubicacion === ubic);
+      const base = fila ? Math.abs(fila.diferencia || 0) : 0;
+      return Math.max(0, base - trfmasCalcAsignado(codigo, ubic, 'FALTANTE'));
+    };
+    const disp = (ubic) => {
+      const fila = sobrantes.find(f => f.ubicacion === ubic);
+      const base = fila ? Math.abs(fila.diferencia || 0) : 0;
+      return Math.max(0, base - trfmasCalcAsignado(codigo, ubic, 'SOBRANTE'));
+    };
+
+    const headerCols = sobrantes.map(s => `
+      <th class="py-1.5 px-2 font-semibold text-center whitespace-nowrap border-l border-surface-variant">
+        ${s.ubicacion}<br>
+        <span class="text-[9px] font-normal text-[#A86612]">disp: ${disp(s.ubicacion).toLocaleString('es-PE')}</span>
+      </th>`).join('');
+
+    const bodyRows = faltantes.map(f => {
+      const cells = sobrantes.map(s => {
+        const yaAsignado = trfmasTraslados.some(t => t.codigo === codigo && t.ubicFaltante === f.ubicacion && t.ubicSobrante === s.ubicacion);
+        const checked = yaAsignado ? 'checked' : '';
+        return `<td class="py-1.5 px-2 text-center border-l border-surface-variant">
+          <input type="checkbox" class="trf-cell-check rounded border-outline-variant cursor-pointer"
+            data-trf-cod="${codigo}" data-trf-uf="${f.ubicacion}" data-trf-us="${s.ubicacion}"
+            data-trf-lote="${(f.loteBpcs || '').toString().replace(/"/g, '&quot;')}" ${checked}>
+        </td>`;
+      }).join('');
+      return `<tr class="border-b border-surface-variant/70">
+        <td class="py-1.5 px-2 font-data whitespace-nowrap">${f.ubicacion}<br>
+          <span class="text-[9px] font-normal text-error">pend: ${pend(f.ubicacion).toLocaleString('es-PE')}</span>
+        </td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="mt-3 pt-3 border-t border-dashed border-outline-variant">
+        <p class="text-[11px] font-semibold text-on-surface mb-1.5 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[15px]">sync_alt</span> Armar traslado de regularización (TRFMAS)
+        </p>
+        <p class="text-[10px] text-on-surface-variant mb-2">Marca el cruce entre una ubicación <b class="text-error">Faltante</b> (fila) y una <b class="text-[#A86612]">Sobrante</b> (columna). La cantidad se asigna automáticamente como el mínimo entre lo pendiente y lo disponible, sin exceder ninguno de los dos. El lote BPCS del movimiento es el de la ubicación Faltante.</p>
+        <div class="overflow-x-auto border border-surface-variant rounded-lg">
+          <table class="text-[11px] border-collapse w-full">
+            <thead class="bg-surface-container-low"><tr class="text-on-surface-variant">
+              <th class="py-1.5 px-2 font-semibold text-left whitespace-nowrap">Faltante \\ Sobrante</th>
+              ${headerCols}
+            </tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  // Delegación de eventos: los checkboxes de la cuadrícula se regeneran en cada render,
+  // así que se escucha una sola vez a nivel de documento.
+  document.addEventListener('change', (e) => {
+    const cb = e.target.closest('.trf-cell-check');
+    if (!cb) return;
+    const codigo = cb.dataset.trfCod, uf = cb.dataset.trfUf, us = cb.dataset.trfUs, lote = cb.dataset.trfLote || '';
+
+    if (cb.checked) {
+      const pendienteActual = (() => {
+        const asignado = trfmasCalcAsignado(codigo, uf, 'FALTANTE');
+        return Math.max(0, trfmasBasePendiente(codigo, uf) - asignado);
+      })();
+      const disponibleActual = (() => {
+        const asignado = trfmasCalcAsignado(codigo, us, 'SOBRANTE');
+        return Math.max(0, trfmasBaseDisponible(codigo, us) - asignado);
+      })();
+      const qty = Math.min(pendienteActual, disponibleActual);
+      if (qty <= 0) {
+        alert('No hay saldo disponible para cruzar estas ubicaciones (ya se asignó todo el faltante o el sobrante disponible).');
+        cb.checked = false;
+        return;
+      }
+      trfmasTraslados.push({ id: 'trf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), codigo, loteBpcs: lote, qty, ubicFaltante: uf, ubicSobrante: us });
+    } else {
+      trfmasTraslados = trfmasTraslados.filter(t => !(t.codigo === codigo && t.ubicFaltante === uf && t.ubicSobrante === us));
+    }
+    trfmasGuardar();
+    trfmasActualizarBadge();
+    if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+    if (!document.getElementById('trfmasModalOverlay').classList.contains('hidden')) trfmasRenderModal();
+  });
+
+  // Bases (sin descontar asignaciones) de pendiente/disponible para un código+ubicación,
+  // leídas directamente de DB.data.
+  function trfmasBasePendiente(codigo, ubicacion) {
+    const fila = (typeof DB !== 'undefined' ? DB.data : []).find(d => (d.CODIGO || '') === codigo && (d.UBICACION || '') === ubicacion);
+    if (!fila) return 0;
+    const saldo = parseFloat(fila.SALDO), cant = parseFloat(fila.CANTIDAD);
+    if (isNaN(saldo) || isNaN(cant)) return 0;
+    return Math.max(0, saldo - cant);
+  }
+  function trfmasBaseDisponible(codigo, ubicacion) {
+    const fila = (typeof DB !== 'undefined' ? DB.data : []).find(d => (d.CODIGO || '') === codigo && (d.UBICACION || '') === ubicacion);
+    if (!fila) return 0;
+    const saldo = parseFloat(fila.SALDO), cant = parseFloat(fila.CANTIDAD);
+    if (isNaN(saldo) || isNaN(cant)) return 0;
+    return Math.max(0, cant - saldo);
+  }
+
+  function trfmasRenderModal() {
+    const body = document.getElementById('trfmasModalBody');
+    const empty = document.getElementById('trfmasModalEmpty');
+    if (trfmasTraslados.length === 0) {
+      body.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    body.innerHTML = trfmasTraslados.map(t => `
+      <tr class="border-b border-surface-variant/70">
+        <td class="py-1.5 px-2 font-data">${t.codigo}</td>
+        <td class="py-1.5 px-2 font-data">${t.loteBpcs || '-'}</td>
+        <td class="py-1.5 px-2 font-data text-right">${t.qty.toLocaleString('es-PE')}</td>
+        <td class="py-1.5 px-2 font-data text-error">${t.ubicFaltante}</td>
+        <td class="py-1.5 px-2 font-data text-[#A86612]">${t.ubicSobrante}</td>
+        <td class="py-1.5 px-2 text-right"><button data-trf-del="${t.id}" class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[16px]">delete</span></button></td>
+      </tr>`).join('');
+    body.querySelectorAll('[data-trf-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        trfmasTraslados = trfmasTraslados.filter(t => t.id !== btn.dataset.trfDel);
+        trfmasGuardar();
+        trfmasActualizarBadge();
+        trfmasRenderModal();
+        if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+      });
+    });
+  }
+
+  function exportarTrfmasExcel() {
+    if (trfmasTraslados.length === 0) { alert('No hay traslados armados para exportar.'); return; }
+    const headers = ['RCCUS', 'RFRWH', 'RTOWH', 'RBPRD', 'RBLOT', 'RQTYT', 'RFRLC', 'RTOLC', 'RRSNC', 'RNDOC', 'RCOM'];
+    const aoa = [headers];
+    trfmasTraslados.forEach(t => {
+      aoa.push([
+        23,
+        'PG',
+        'PG',
+        (t.codigo || '').toString(),
+        (t.loteBpcs || '').toString(),
+        Math.round(Math.abs(t.qty)),
+        (t.ubicFaltante || '').toString(),
+        (t.ubicSobrante || '').toString(),
+        '01',
+        null,
+        'TRASL. INV'
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'TRFMAS');
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `TRFMAS_${fecha}.xlsx`);
+  }
+
+  document.getElementById('btnTrfmasPanel').addEventListener('click', () => {
+    trfmasRenderModal();
+    document.getElementById('trfmasModalOverlay').classList.remove('hidden');
+  });
+  document.getElementById('trfmasModalClose').addEventListener('click', () => {
+    document.getElementById('trfmasModalOverlay').classList.add('hidden');
+  });
+  document.getElementById('trfmasModalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'trfmasModalOverlay') document.getElementById('trfmasModalOverlay').classList.add('hidden');
+  });
+  document.getElementById('btnTrfmasVaciar').addEventListener('click', () => {
+    if (trfmasTraslados.length === 0) return;
+    if (!confirm('¿Vaciar todos los traslados armados? Esta acción no se puede deshacer.')) return;
+    trfmasTraslados = [];
+    trfmasGuardar();
+    trfmasActualizarBadge();
+    trfmasRenderModal();
+    if (typeof renderDashDetailTable === 'function') renderDashDetailTable();
+  });
+  document.getElementById('btnTrfmasExportar').addEventListener('click', exportarTrfmasExcel);
+
+  trfmasActualizarBadge();
+  </script>
 </body>
 </html>
